@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import requests
 import pandas as pd
 import openai
+from datetime import datetime, timedelta, timezone
 
 # load environment variables from .env (openai token)
 load_dotenv()
@@ -22,11 +23,27 @@ newsapi_key = os.getenv("NEWS_API_KEY")
 # Define the API endpoint and parameters
 url = "https://newsapi.org/v2/everything"
 
+# variables to restrict for recent articles.
+from_hours = 168
+from_time = (datetime.now(timezone.utc) - timedelta(hours=from_hours)).isoformat()
+
 params = {
-    "q": "stock market OR stocks OR finance", # newsapi search keywords
+    "q": (
+        'earnings OR stocks OR "stock market" '
+        'OR Wall Street OR Nasdaq OR S&P '
+        'OR Federal Reserve OR tech'
+    ), # newsapi search keywords
+    "sources": (
+        "reuters,"
+        "cnbc,"
+        "marketwatch,"
+        "fortune,"
+        "business-insider"
+    ),
     "language": "en",
-    "sortBy": "publishedAt", # sorts for news posted most recently
-    "pageSize": 20,
+    "sortBy": "relevancy", # sorts for news posted most recently
+    "from": from_time,
+    "pageSize": 10,
     "apiKey": newsapi_key
 }
 
@@ -75,7 +92,7 @@ df = df.drop_duplicates(subset={"title"})
 print(f"After cleaning, {len(df)} articles remain")
 
 # Combine title and description
-df["text_for_ai"] = df["title"] + ". " + df["description"]
+df["text_for_ai"] = "Title: " + df["title"] + ". Description: " + df["description"] + ". URL: " + df["url"]
 
 # Check the first 5 combined texts
 print(df["text_for_ai"].head())
@@ -83,9 +100,8 @@ print(df["text_for_ai"].head())
 # Prompt template
 def create_prompt(article_text):
     return (
-        f"Write a concise, engaging stock news article based on the following information:\n\n"
-        f"{article_text}\n\n"
-        f"Keep it professional, clear, and under 150 words."
+        f"Assume the role of a proffesional newswriter for US stock news. Read the following US stock market news snippet and write an engaging article for a news blog post. Include key points like companies, sectors, or market impact if mentioned. End by including the article URL. Make your article more concise and aim to write in a manner that promotes the viewer to visit the link for more information.\n\n"
+        f"Snippet: {article_text}"
     )
 
 # Test the first article
@@ -104,7 +120,7 @@ def generate_article(prompt):
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo", # using GPT-3.5 model
             messages=[{"role": "user","content": prompt}],
-            temperature=0.7 # creativity: 0 = conservative, 1 = creative
+            temperature=0.5 # creativity: 0 = conservative, 1 = creative
         )
         text = response.choices[0].message.content.strip()
         return text
