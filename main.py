@@ -100,7 +100,7 @@ print(df["text_for_ai"].head())
 # Prompt template
 def create_prompt(article_text):
     return (
-        f"Assume the role of a proffesional newswriter for US stock news. Read the following US stock market news snippet and write an engaging article for a news blog post. Include key points like companies, sectors, or market impact if mentioned. End by including the article URL. Make your article more concise and aim to write in a manner that promotes the viewer to visit the link for more information.\n\n"
+        f"Assume the role of a proffesional news reporter for US stock news. Read the following US stock market news snippet and write an engaging article for a news blog post. Include key points like companies, sectors, or market impact if mentioned. End by including the article URL. Make your article more concise and aim to write in a manner that promotes the viewer to visit the link for more information.\n\n"
         f"Snippet: {article_text}"
     )
 
