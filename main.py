@@ -87,7 +87,7 @@ print(df.head())
 df = df.dropna(subset=["title","description"])
 
 # Remove duplicates
-df = df.drop_duplicates(subset={"title"})
+df = df.drop_duplicates(subset=["title"])
 
 print(f"After cleaning, {len(df)} articles remain")
 
@@ -103,6 +103,25 @@ def create_prompt(article_text):
         f"Assume the role of a proffesional news reporter for US stock news. Read the following US stock market news snippet and write an engaging article for a news blog post. Include key points like companies, sectors, or market impact if mentioned. End by including the article URL. Make your article more concise and aim to write in a manner that promotes the viewer to visit the link for more information.\n\n"
         f"Snippet: {article_text}"
     )
+
+def create_enrichment_prompt(article_text):
+    return f"""
+You are a financial news analyst.
+
+Analyze the following US stock market new snippet and return sturctured information in JSON format.
+
+Return ONLY valid JSON with the following fields:
+
+sentiment: "Bullish", "Bearish", or "Neutral"
+companies: list of company names mentioned
+sector: main sector impacted (Technology, Finance, Energy, etc.)
+keywords: 3-6 important keywords from the story
+market_impact: short sentence explaining the potential market impact
+summary: concise summary of the news
+
+New snippet:
+{article_text}
+"""
 
 # Test the first article
 first_prompt = create_prompt(df["text_for_ai"].iloc[0])
@@ -128,14 +147,77 @@ def generate_article(prompt):
         print("Error generating article: ", e)
         return ""
     
+import json
+
+def enrich_article(prompt):
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user","content": prompt}],
+            temperature=0
+        )
+
+        text = response.choices[0].message.content.strip()
+
+        # Convert JSON text to dictionary
+        print("AI RESPONSE")
+        print("text")
+
+        data = json.loads(text)
+
+        return data
+    
+    except Exception as e:
+        print("Error enriching article:",e)
+        return {
+            "sentiment": "",
+            "companies": [],
+            "sector": "",
+            "heywords": [],
+            "market_impact": "",
+            "summary": ""
+        }
+    
+enriched_rows = []
+
+for i, article_text in enumerate(df["text_for_ai"]):
+
+    print(f"\nEnriching article {i+1}...")
+
+    prompt = create_enrichment_prompt(article_text)
+
+    enrichment = enrich_article(prompt)
+
+    enriched_rows.append({
+        "text": article_text,
+        "sentiment": enrichment.get("sentiment", ""),
+        "companies": ", ".join(enrichment.get("companies", [])),
+        "sector": enrichment.get("sector", ""),
+        "keywords": ", ".join(enrichment.get("keywords", [])),
+        "market_impact": enrichment.get("market_impact", ""),
+        "summary": enrichment.get("summary", [])
+    })
+
+enriched_df = pd.DataFrame(enriched_rows)
+print(enriched_df.head())
+enriched_df.to_csv("data/enriched_stock_news.csv", index=False)
+print("Saved enriched news to data/enriched_stock_news.csv")
+    
 # List to store generated articles from openAI
 generated_articles = []
-for i, article_text in enumerate(df["text_for_ai"]):
-    prompt = create_prompt(article_text)
+for i, row in enriched_df.iterrows():
+    
     print(f"\n Generating article {i+1}....")
+
+    # Use AI generated summary instead of the raw snippet
+    prompt = create_prompt(row["summary"])
     ai_text = generate_article(prompt)
     generated_articles.append({
-        "original_text": article_text,
+        "summary": row["summary"],
+        "sentiment": row["sentiment"],
+        "companies": row["companies"],
+        "keywords": row["keywords"],
         "ai_article": ai_text
     })
 
@@ -145,4 +227,5 @@ ai_df = pd.DataFrame(generated_articles)
 # Save to CSV
 ai_df.to_csv("data/generated_stock_news.csv",index=False)
 print("/nAll AI-generated articales saved to data/generated_stock_news.csv")
-    
+
+
