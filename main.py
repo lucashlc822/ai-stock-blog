@@ -174,7 +174,7 @@ def enrich_article(prompt):
             "sentiment": "",
             "companies": [],
             "sector": "",
-            "heywords": [],
+            "keywords": [],
             "market_impact": "",
             "summary": ""
         }
